@@ -1,5 +1,7 @@
-/*** Eland Anthony
-	RxB Backend Development Project - Mockbuster REST API
+/***
+
+Eland Anthony
+RxB Backend Development Project - Mockbuster REST API
 
 Helpful Documentation
 //https://www.calhoun.io/connecting-to-a-postgresql-database-with-gos-database-sql-package/
@@ -8,6 +10,8 @@ Helpful Documentation
 //https://chromium.googlesource.com/external/github.com/gorilla/mux/+/refs/tags/v1.2.0/README.md
 //https://golang.org/pkg/database/sql/
 //https://golang.org/pkg/encoding/json/
+//https://semaphoreci.com/community/tutorials/building-and-testing-a-rest-api-in-go-with-gorilla-mux-and-postgresql
+//https://stackoverflow.com/questions/28192178/access-post-parameters-in-handler
 
 TODO:	Date: (06/28) (Begin):
 Setup Docker, Golang in WSL 2 Windows env
@@ -80,12 +84,42 @@ const (
 	dbname   = "dvdrental"
 )
 
+const commentQuery1 = `CREATE TABLE IF NOT EXISTS comment (
+		comment_id SERIAL PRIMARY KEY,
+		comment VARCHAR NOT NULL,
+		customer_id INT NOT NULL,
+		film_id INT NOT NULL)`
+
+/*
+		const commentQuery1 = `CREATE TABLE IF NOT EXISTS comment (
+	comment_id SERIAL PRIMARY KEY,
+	comment VARCHAR NOT NULL,
+	customer_id INT NOT NULL,
+	film_id INT NOT NULL,
+	FOREIGN KEY (customer_id)
+		REFERENCES customer (customer_id),
+	FOREIGN KEY (film_id)
+		REFERENCES film (film_id))`
+*/
+
+/*const commentQuery3 = `INSERT INTO comment(
+comment,
+customer_id,
+film_id)
+VALUES('ThisIsATest','20','100')`
+*/
+
+//const commentQuery4 = `DROP TABLE comment`
+
 type Film struct {
 	ID          int
 	Title       string
 	Rating      string
 	Description string
 	Category    string
+	CustomerId  int
+	CommentId   int
+	Comment     string
 }
 
 func main() {
@@ -97,6 +131,9 @@ func main() {
 	r.HandleFunc("/films/ratings/{rating}", getRating).Methods("GET")
 	r.HandleFunc("/films/categories/{category}", getCategory).Methods("GET")
 	r.HandleFunc("/films/titles/{title}", getFilmInfo).Methods("GET")
+	//not working :/
+	r.HandleFunc("/films/postcomment", postComment).Methods("POST")
+	r.HandleFunc("/films/{film_id}/comment/{customer_id}", getComment).Methods("GET")
 
 	http.ListenAndServe(":8080", r)
 }
@@ -139,8 +176,7 @@ func getFilms(w http.ResponseWriter, r *http.Request) {
 			rating,
 			description
 		FROM film
-		WHERE film_id = '1000'
-		LIMIT 10`)
+		LIMIT 100`)
 
 	if err != nil {
 		log.Fatal(err)
@@ -166,7 +202,7 @@ func getFilms(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//marshall format to json
-	res, _ := json.Marshal(films)
+	res, _ := json.MarshalIndent(films, "", "	")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(res)
@@ -218,7 +254,7 @@ func getRating(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//marshall format to json
-	res, _ := json.Marshal(films)
+	res, _ := json.MarshalIndent(films, "", "	")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(res)
@@ -273,7 +309,7 @@ func getCategory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//marshall format to json
-	res, _ := json.Marshal(films)
+	res, _ := json.MarshalIndent(films, "", "	")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(res)
@@ -327,7 +363,102 @@ func getFilmInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//marshall format to json
-	res, _ := json.Marshal(films)
+	res, _ := json.MarshalIndent(films, "", "	")
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(res)
+}
+
+func postComment(w http.ResponseWriter, r *http.Request) {
+	//ex: curl -X POST --data 'one=1' 'http://localhost:8000/
+
+	//connect to postgres db. look for 'Successfully Connected' output
+	db := connect()
+	//db.Exec(commentQuery4)
+
+	//ceate comment table if not exists
+	db.Exec(commentQuery1)
+
+	//cannot use mux here with a post
+	//must use a decoder to translate input to json
+
+	//create instance of Film struct to store inputs
+	var cmt Film
+
+	//decode post args point it to cmt
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&cmt)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	//assign vars needed to the given post args
+	comment := cmt.Comment
+	customer_id := cmt.CustomerId
+	film_id := cmt.ID
+	comment_id := 0
+
+	//excecute insert query to insert the given info to the comment table
+	//query must return... return the new comment id which should incrememnt by 1 for each comment
+	//due to its 'seriel' attribute
+	err = db.QueryRow(
+		`INSERT INTO comment(
+			comment,
+			customer_id,
+			film_id)
+		VALUES($1,$2,$3) RETURNING comment_id`, comment, customer_id, film_id).Scan(&comment_id)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("CID ", comment_id)
+
+	//marshall format to json
+	res, _ := json.Marshal(WelcomeResponse{Message: "OK"})
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(res)
+}
+
+func getComment(w http.ResponseWriter, r *http.Request) {
+	//connect to postgres db. look for 'Successfully Connected' output
+	db := connect()
+
+	//db.Exec(commentQuery1)
+
+	//db.Exec(commentQuery3)
+
+	//get each route variable
+	vars := mux.Vars(r)
+
+	//using the [string]string map, get string where route var = {rating} to use in query
+	film_id := vars["film_id"]
+	customer_id := vars["customer_id"]
+
+	//SQL query for each row of the DB
+	rows, err := db.Query(
+		`SELECT
+			c.film_id,
+			c.comment,
+			c.customer_id
+		FROM film f, comment c, customer cu
+		WHERE c.film_id=f.film_id AND c.customer_id=cu.customer_id 
+		AND c.film_id=$1 AND c.customer_id=$2`, film_id, customer_id)
+
+	if err != nil {
+		fmt.Println("YEPPP")
+		log.Fatal(err)
+	}
+
+	var comment []*Film
+	for rows.Next() {
+		c := new(Film)
+
+		rows.Scan(&c.ID, &c.Comment, &c.CustomerId)
+
+		comment = append(comment, c)
+	}
+	//marshall format to json
+	res, _ := json.MarshalIndent(comment, "", "		")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(res)
@@ -349,7 +480,7 @@ func testConnection(w http.ResponseWriter, r *http.Request) {
 */
 
 func WelcomeHandler(w http.ResponseWriter, r *http.Request) {
-	res, _ := json.Marshal(WelcomeResponse{Message: "Welcome to Mockbuster!"})
+	res, _ := json.Marshal(WelcomeResponse{Message: "Welcome to Mockbuster!                          Usage:\nView all films and key information: curl http://localhost:8080/films                           View all films and key information by category: curl http://localhost:8080/films/categories/[desired category]                             View all films and key information by rating: curl http://localhost:8080/films/ratings/[desired rating]                               View all information for a desired film name: curl http://localhost:8080/films/titles/[desired title[title name should deliminate words via underscores]]"})
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(res)
