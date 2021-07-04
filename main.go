@@ -112,26 +112,33 @@ VALUES('ThisIsATest','20','100')`
 //const commentQuery4 = `DROP TABLE comment`
 
 type Film struct {
-	ID          int
-	Title       string
-	Rating      string
-	Description string
-	Category    string
-	CustomerId  int
-	CommentId   int
-	Comment     string
+	ID               int
+	Title            string  `json:"Title,omitempty"`
+	Rating           string  `json:"Rating,omitempty"`
+	Description      string  `json:"Description,omitempty"`
+	Category         string  `json:"Category,omitempty"`
+	ReleaseYear      int     `json:"ReleaseYear,omitempty"`
+	Language         string  `json:"Language,omitempty"`
+	ActorFName       string  `json:"ActorFName,omitempty"`
+	ActorLName       string  `json:"ActorLName,omitempty"`
+	Length           int     `json:"Length,omitempty"`
+	RentalDuration   int     `json:"RentalDuration,omitempty"`
+	RentalRate       float32 `json:"RentalRate,omitempty"`
+	ReplacementCost  float32 `json:"ReplacementCost,omitempty"`
+	SpeacialFeatures string  `json:"SpeacialFeatures,omitempty"`
+	CustomerId       int     `json:"CustomerId,omitempty"`
+	CommentId        int     `json:"CommentId,omitempty"`
+	Comment          string  `json:"comment,omitempty"`
 }
 
 func main() {
 	r := mux.NewRouter()
 
 	r.HandleFunc("/", WelcomeHandler).Methods("GET")
-	//r.HandleFunc("/films", testConnection).Methods("GET")
 	r.HandleFunc("/films", getFilms).Methods("GET")
 	r.HandleFunc("/films/ratings/{rating}", getRating).Methods("GET")
 	r.HandleFunc("/films/categories/{category}", getCategory).Methods("GET")
 	r.HandleFunc("/films/titles/{title}", getFilmInfo).Methods("GET")
-	//not working :/
 	r.HandleFunc("/films/postcomment", postComment).Methods("POST")
 	r.HandleFunc("/films/{film_id}/comment/{customer_id}", getComment).Methods("GET")
 
@@ -170,13 +177,28 @@ func getFilms(w http.ResponseWriter, r *http.Request) {
 
 	//SQL query for each row of the DB
 	rows, err := db.Query(
-		`SELECT
-			film_id,
-			title,
-			rating,
-			description
-		FROM film
-		LIMIT 100`)
+		`SELECT DISTINCT ON (f.film_id)
+			f.film_id,
+			f.title,
+			f.rating,
+			f.description,
+			f.release_year,
+			f.Length,
+			a.first_name,
+			a.last_name,
+			l.name,
+			c.name,
+			f.rental_duration,
+			f.rental_rate,
+			f.replacement_cost,
+			f.special_features
+		FROM film f, category c, film_category fc, language l, actor a, film_actor fa
+		WHERE 
+			fc.film_id = f.film_id AND 
+			c.category_id = fc.category_id AND
+			l.language_id = f.language_id AND
+			fa.film_id = f.film_id AND
+			a.actor_id = fa.actor_id`)
 
 	if err != nil {
 		log.Fatal(err)
@@ -195,9 +217,10 @@ func getFilms(w http.ResponseWriter, r *http.Request) {
 		flm := new(Film)
 
 		//convert data read from DB to proper Go types
-		rows.Scan(&flm.ID, &flm.Title, &flm.Rating, &flm.Description)
+		rows.Scan(&flm.ID, &flm.Title, &flm.Rating, &flm.Description, &flm.ReleaseYear, &flm.Length, &flm.ActorFName, &flm.ActorLName, &flm.Language, &flm.Category, &flm.RentalDuration, &flm.RentalRate, &flm.ReplacementCost, &flm.SpeacialFeatures)
 
 		//add film to array
+
 		films = append(films, flm)
 	}
 
@@ -221,13 +244,28 @@ func getRating(w http.ResponseWriter, r *http.Request) {
 
 	//SQL query for each row of the DB
 	rows, err := db.Query(
-		`SELECT
-			film_id,
-			title,
-			rating,
-			description
-		FROM film
+		`SELECT DISTINCT ON (f.film_id)
+			f.film_id,
+			f.title,
+			f.rating,
+			f.description,
+			f.release_year,
+			f.Length,
+			a.first_name,
+			a.last_name,
+			l.name,
+			c.name,
+			f.rental_duration,
+			f.rental_rate,
+			f.replacement_cost,
+			f.special_features
+		FROM film f, category c, film_category fc, language l, actor a, film_actor fa
 		WHERE 
+			fc.film_id = f.film_id AND 
+			c.category_id = fc.category_id AND
+			l.language_id = f.language_id AND
+			fa.film_id = f.film_id AND
+			a.actor_id = fa.actor_id AND
 		rating=$1`, ratings)
 
 	if err != nil {
@@ -247,7 +285,7 @@ func getRating(w http.ResponseWriter, r *http.Request) {
 		flm := new(Film)
 
 		//convert data read from DB to proper Go types
-		rows.Scan(&flm.ID, &flm.Title, &flm.Rating, &flm.Description)
+		rows.Scan(&flm.ID, &flm.Title, &flm.Rating, &flm.Description, &flm.ReleaseYear, &flm.Length, &flm.ActorFName, &flm.ActorLName, &flm.Language, &flm.Category, &flm.RentalDuration, &flm.RentalRate, &flm.ReplacementCost, &flm.SpeacialFeatures)
 
 		//add film to array
 		films = append(films, flm)
@@ -273,16 +311,28 @@ func getCategory(w http.ResponseWriter, r *http.Request) {
 
 	//SQL query for each row of the DB
 	rows, err := db.Query(
-		`SELECT DISTINCT
+		`SELECT DISTINCT ON (f.film_id)
 			f.film_id,
 			f.title,
 			f.rating,
 			f.description,
-			c.name
-		FROM film f, category c, film_category fc
+			f.release_year,
+			f.Length,
+			a.first_name,
+			a.last_name,
+			l.name,
+			c.name,
+			f.rental_duration,
+			f.rental_rate,
+			f.replacement_cost,
+			f.special_features
+		FROM film f, category c, film_category fc, language l, actor a, film_actor fa
 		WHERE 
 			fc.film_id = f.film_id AND 
 			c.category_id = fc.category_id AND
+			l.language_id = f.language_id AND
+			fa.film_id = f.film_id AND
+			a.actor_id = fa.actor_id AND
 			c.name=$1`, categories)
 
 	if err != nil {
@@ -302,7 +352,7 @@ func getCategory(w http.ResponseWriter, r *http.Request) {
 		flm := new(Film)
 
 		//convert data read from DB to proper Go types
-		rows.Scan(&flm.ID, &flm.Title, &flm.Rating, &flm.Description, &flm.Category)
+		rows.Scan(&flm.ID, &flm.Title, &flm.Rating, &flm.Description, &flm.ReleaseYear, &flm.Length, &flm.ActorFName, &flm.ActorLName, &flm.Language, &flm.Category, &flm.RentalDuration, &flm.RentalRate, &flm.ReplacementCost, &flm.SpeacialFeatures)
 
 		//add film to array
 		films = append(films, flm)
@@ -331,13 +381,28 @@ func getFilmInfo(w http.ResponseWriter, r *http.Request) {
 
 	//SQL query for each row of the DB
 	rows, err := db.Query(
-		`SELECT
-			film_id,
-			title,
-			rating,
-			description
-		FROM film
-		WHERE title=$1`, title)
+		`SELECT DISTINCT ON (f.film_id)
+			f.film_id,
+			f.title,
+			f.rating,
+			f.description,
+			f.release_year,
+			f.Length,
+			a.first_name,
+			a.last_name,
+			l.name,
+			c.name,
+			f.rental_duration,
+			f.rental_rate,
+			f.replacement_cost,
+			f.special_features
+		FROM film f, category c, film_category fc, language l, actor a, film_actor fa
+		WHERE 
+			fc.film_id = f.film_id AND 
+			c.category_id = fc.category_id AND
+			l.language_id = f.language_id AND
+			fa.film_id = f.film_id AND
+			a.actor_id = fa.actor_id AND f.title=$1`, title)
 
 	if err != nil {
 		log.Fatal(err)
@@ -356,7 +421,7 @@ func getFilmInfo(w http.ResponseWriter, r *http.Request) {
 		flm := new(Film)
 
 		//convert data read from DB to proper Go types
-		rows.Scan(&flm.ID, &flm.Title, &flm.Rating, &flm.Description)
+		rows.Scan(&flm.ID, &flm.Title, &flm.Rating, &flm.Description, &flm.ReleaseYear, &flm.Length, &flm.ActorFName, &flm.ActorLName, &flm.Language, &flm.Category, &flm.RentalDuration, &flm.RentalRate, &flm.ReplacementCost, &flm.SpeacialFeatures)
 
 		//add film to array
 		films = append(films, flm)
@@ -370,7 +435,7 @@ func getFilmInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 func postComment(w http.ResponseWriter, r *http.Request) {
-	//ex: curl -X POST --data 'one=1' 'http://localhost:8000/
+	//curl -X POST -d "{\"comment\":\"foo\", \"ID\":123, \"CustomerId\":123}" http://localhost:8080/films/postcomment
 
 	//connect to postgres db. look for 'Successfully Connected' output
 	db := connect()
@@ -436,10 +501,11 @@ func getComment(w http.ResponseWriter, r *http.Request) {
 
 	//SQL query for each row of the DB
 	rows, err := db.Query(
-		`SELECT
-			c.film_id,
+		`SELECT DISTINCT ON (c.comment_id)
+			f.film_id,
 			c.comment,
-			c.customer_id
+			cu.customer_id,
+			c.comment_id
 		FROM film f, comment c, customer cu
 		WHERE c.film_id=f.film_id AND c.customer_id=cu.customer_id 
 		AND c.film_id=$1 AND c.customer_id=$2`, film_id, customer_id)
@@ -451,11 +517,11 @@ func getComment(w http.ResponseWriter, r *http.Request) {
 
 	var comment []*Film
 	for rows.Next() {
-		c := new(Film)
+		cmt := new(Film)
 
-		rows.Scan(&c.ID, &c.Comment, &c.CustomerId)
+		rows.Scan(&cmt.ID, &cmt.Comment, &cmt.CustomerId, &cmt.CommentId)
 
-		comment = append(comment, c)
+		comment = append(comment, cmt)
 	}
 	//marshall format to json
 	res, _ := json.MarshalIndent(comment, "", "		")
@@ -464,23 +530,8 @@ func getComment(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(res)
 }
 
-/*
-func testConnection(w http.ResponseWriter, r *http.Request) {
-	db := connect()
-	result, err := db.Query(`SELECT name FROM Film limit 10`)
-	if err != nil {
-		log.Fatal(err)
-	}
-	res, _ := json.Marshal(result)
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(res)
-}
-*/
-
 func WelcomeHandler(w http.ResponseWriter, r *http.Request) {
-	res, _ := json.Marshal(WelcomeResponse{Message: "Welcome to Mockbuster!                          Usage:\nView all films and key information: curl http://localhost:8080/films                           View all films and key information by category: curl http://localhost:8080/films/categories/[desired category]                             View all films and key information by rating: curl http://localhost:8080/films/ratings/[desired rating]                               View all information for a desired film name: curl http://localhost:8080/films/titles/[desired title[title name should deliminate words via underscores]]"})
+	res, _ := json.Marshal(WelcomeResponse{Message: "Welcome to Mockbuster!Usage:\nView all films and key information: curl http://localhost:8080/films                           View all films and key information by category: curl http://localhost:8080/films/categories/[desired category]                             View all films and key information by rating: curl http://localhost:8080/films/ratings/[desired rating]                               View all information for a desired film name: curl http://localhost:8080/films/titles/[desired title[title name should deliminate words via underscores]]"})
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(res)
