@@ -3,62 +3,19 @@
 Eland Anthony
 RxB Backend Development Project - Mockbuster REST API
 
-Helpful Documentation
-//https://www.calhoun.io/connecting-to-a-postgresql-database-with-gos-database-sql-package/
-//https://golangbyexample.com/go-mod-sum-module/
-//http://go-database-sql.org/overview.html
-//https://chromium.googlesource.com/external/github.com/gorilla/mux/+/refs/tags/v1.2.0/README.md
-//https://golang.org/pkg/database/sql/
-//https://golang.org/pkg/encoding/json/
-//https://semaphoreci.com/community/tutorials/building-and-testing-a-rest-api-in-go-with-gorilla-mux-and-postgresql
-//https://stackoverflow.com/questions/28192178/access-post-parameters-in-handler
-
-TODO:	Date: (06/28) (Begin):
-Setup Docker, Golang in WSL 2 Windows env
-Research into Golang syntax, structure, mux
-
-TODO:	Date: (06/29):
-Create:
-- DB connection Func
-- Test Connection
-- Outline initial bullet point completion plans
-
-TODO:	Date (06/30):
-For:
-	A list of films
-	- The user should be able to search the films by title (Do last)
-	- The user should be able to filter the films by rating
-	- The user should be able to filter the films by category
-Create:
-- Film Struct
-- Query Func to grab neccessary records
-	- Array of type struct pointers to get and return query records
-- getCategory and getRating Funcs
-	- Run connect()
-	- Map of route variables for rating and catagory to allow filtering
-	- Run query based on route var
-
-TODO:	Date (07/01) (To be completed 07/02?):
-For:
-	Satisfy the remaining two requirements involving customer comments:
-		- The ability to add a customer comment to a film
-		- The ability to retrieve customer comments for a film
-Notes:
-	- A customer table exists in schema, but a comment table does not
-	- When querying for details of a single film, the query should (probably) pull in most or all columns in the film table
-Create:
-	- A comment table related to the customer table. Dont add to preexisting tables to reduce complexity.
-	- A POST and GET function handler to post comment for a film and retrieve comments for a film
-	- Append usage information to WelcomeHandler func message
-Modify:
-	- Append more/all of the remaining film columns to the getFilmInfo query
-	- Print the json info in a more 'pretty' way
-	Testing, readability, and reliability:
-		- Add test cases to each func
-		- Be sure comments are uniform and present
-		- Double check queries, stress testing
-
 ***/
+
+/*
+Useful queries for testing:
+
+const commentQueryInsert = `INSERT INTO comment(
+comment,
+customer_id,
+film_id)
+VALUES('ThisIsATest','20','100')`
+
+const commentQueryDropTable = `DROP TABLE comment`
+*/
 
 package main
 
@@ -84,35 +41,14 @@ const (
 	dbname   = "dvdrental"
 )
 
-const commentQuery1 = `CREATE TABLE IF NOT EXISTS comment (
+const CreateCommentTableIfNotExists = `CREATE TABLE IF NOT EXISTS comment (
 		comment_id SERIAL PRIMARY KEY,
 		comment VARCHAR NOT NULL,
 		customer_id INT NOT NULL,
 		film_id INT NOT NULL)`
 
-/*
-		const commentQuery1 = `CREATE TABLE IF NOT EXISTS comment (
-	comment_id SERIAL PRIMARY KEY,
-	comment VARCHAR NOT NULL,
-	customer_id INT NOT NULL,
-	film_id INT NOT NULL,
-	FOREIGN KEY (customer_id)
-		REFERENCES customer (customer_id),
-	FOREIGN KEY (film_id)
-		REFERENCES film (film_id))`
-*/
-
-/*const commentQuery3 = `INSERT INTO comment(
-comment,
-customer_id,
-film_id)
-VALUES('ThisIsATest','20','100')`
-*/
-
-//const commentQuery4 = `DROP TABLE comment`
-
 type Film struct {
-	ID               int
+	FilmID           int
 	Title            string  `json:"Title,omitempty"`
 	Rating           string  `json:"Rating,omitempty"`
 	Description      string  `json:"Description,omitempty"`
@@ -135,10 +71,10 @@ func main() {
 	r := mux.NewRouter()
 
 	r.HandleFunc("/", WelcomeHandler).Methods("GET")
-	r.HandleFunc("/films", getFilms).Methods("GET")
+	r.HandleFunc("/films", GetFilms).Methods("GET")
 	r.HandleFunc("/films/ratings/{rating}", getRating).Methods("GET")
 	r.HandleFunc("/films/categories/{category}", getCategory).Methods("GET")
-	r.HandleFunc("/films/titles/{title}", getFilmInfo).Methods("GET")
+	r.HandleFunc("/films/titles/{title}", GetFilmInfo).Methods("GET")
 	r.HandleFunc("/films/postcomment", postComment).Methods("POST")
 	r.HandleFunc("/films/{film_id}/comment/{customer_id}", getComment).Methods("GET")
 
@@ -162,15 +98,18 @@ func connect() *sql.DB {
 
 	//check for connection
 	if err != nil {
-		fmt.Println("Error")
 		panic(err)
 	}
+
+	fmt.Println("")
 	fmt.Println("Successfully connected!")
+	fmt.Println("")
+
 	return db
 }
 
-//get and return films from db... usage: curl http://localhost:8080/films
-func getFilms(w http.ResponseWriter, r *http.Request) {
+//get and return films and details from db
+func GetFilms(w http.ResponseWriter, r *http.Request) {
 
 	//connect to postgres db. look for 'Successfully Connected' output
 	db := connect()
@@ -217,7 +156,7 @@ func getFilms(w http.ResponseWriter, r *http.Request) {
 		flm := new(Film)
 
 		//convert data read from DB to proper Go types
-		rows.Scan(&flm.ID, &flm.Title, &flm.Rating, &flm.Description, &flm.ReleaseYear, &flm.Length, &flm.ActorFName, &flm.ActorLName, &flm.Language, &flm.Category, &flm.RentalDuration, &flm.RentalRate, &flm.ReplacementCost, &flm.SpeacialFeatures)
+		rows.Scan(&flm.FilmID, &flm.Title, &flm.Rating, &flm.Description, &flm.ReleaseYear, &flm.Length, &flm.ActorFName, &flm.ActorLName, &flm.Language, &flm.Category, &flm.RentalDuration, &flm.RentalRate, &flm.ReplacementCost, &flm.SpeacialFeatures)
 
 		//add film to array
 
@@ -285,7 +224,7 @@ func getRating(w http.ResponseWriter, r *http.Request) {
 		flm := new(Film)
 
 		//convert data read from DB to proper Go types
-		rows.Scan(&flm.ID, &flm.Title, &flm.Rating, &flm.Description, &flm.ReleaseYear, &flm.Length, &flm.ActorFName, &flm.ActorLName, &flm.Language, &flm.Category, &flm.RentalDuration, &flm.RentalRate, &flm.ReplacementCost, &flm.SpeacialFeatures)
+		rows.Scan(&flm.FilmID, &flm.Title, &flm.Rating, &flm.Description, &flm.ReleaseYear, &flm.Length, &flm.ActorFName, &flm.ActorLName, &flm.Language, &flm.Category, &flm.RentalDuration, &flm.RentalRate, &flm.ReplacementCost, &flm.SpeacialFeatures)
 
 		//add film to array
 		films = append(films, flm)
@@ -352,7 +291,7 @@ func getCategory(w http.ResponseWriter, r *http.Request) {
 		flm := new(Film)
 
 		//convert data read from DB to proper Go types
-		rows.Scan(&flm.ID, &flm.Title, &flm.Rating, &flm.Description, &flm.ReleaseYear, &flm.Length, &flm.ActorFName, &flm.ActorLName, &flm.Language, &flm.Category, &flm.RentalDuration, &flm.RentalRate, &flm.ReplacementCost, &flm.SpeacialFeatures)
+		rows.Scan(&flm.FilmID, &flm.Title, &flm.Rating, &flm.Description, &flm.ReleaseYear, &flm.Length, &flm.ActorFName, &flm.ActorLName, &flm.Language, &flm.Category, &flm.RentalDuration, &flm.RentalRate, &flm.ReplacementCost, &flm.SpeacialFeatures)
 
 		//add film to array
 		films = append(films, flm)
@@ -365,7 +304,7 @@ func getCategory(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(res)
 }
 
-func getFilmInfo(w http.ResponseWriter, r *http.Request) {
+func GetFilmInfo(w http.ResponseWriter, r *http.Request) {
 
 	//connect to postgres db. look for 'Successfully Connected' output
 	db := connect()
@@ -414,14 +353,13 @@ func getFilmInfo(w http.ResponseWriter, r *http.Request) {
 	//create array of pointers of type Film
 	var films []*Film
 
-	//while rows.Next() {
 	for rows.Next() {
 
 		//allocate memory for db read
 		flm := new(Film)
 
 		//convert data read from DB to proper Go types
-		rows.Scan(&flm.ID, &flm.Title, &flm.Rating, &flm.Description, &flm.ReleaseYear, &flm.Length, &flm.ActorFName, &flm.ActorLName, &flm.Language, &flm.Category, &flm.RentalDuration, &flm.RentalRate, &flm.ReplacementCost, &flm.SpeacialFeatures)
+		rows.Scan(&flm.FilmID, &flm.Title, &flm.Rating, &flm.Description, &flm.ReleaseYear, &flm.Length, &flm.ActorFName, &flm.ActorLName, &flm.Language, &flm.Category, &flm.RentalDuration, &flm.RentalRate, &flm.ReplacementCost, &flm.SpeacialFeatures)
 
 		//add film to array
 		films = append(films, flm)
@@ -435,17 +373,15 @@ func getFilmInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 func postComment(w http.ResponseWriter, r *http.Request) {
-	//curl -X POST -d "{\"comment\":\"foo\", \"ID\":123, \"CustomerId\":123}" http://localhost:8080/films/postcomment
 
 	//connect to postgres db. look for 'Successfully Connected' output
 	db := connect()
-	//db.Exec(commentQuery4)
 
 	//ceate comment table if not exists
-	db.Exec(commentQuery1)
+	db.Exec(CreateCommentTableIfNotExists)
 
 	//cannot use mux here with a post
-	//must use a decoder to translate input to json
+	//must use a decoder to translate input from json
 
 	//create instance of Film struct to store inputs
 	var cmt Film
@@ -460,7 +396,9 @@ func postComment(w http.ResponseWriter, r *http.Request) {
 	//assign vars needed to the given post args
 	comment := cmt.Comment
 	customer_id := cmt.CustomerId
-	film_id := cmt.ID
+	film_id := cmt.FilmID
+
+	//must initialize comment_id despite its serial assignment
 	comment_id := 0
 
 	//excecute insert query to insert the given info to the comment table
@@ -472,25 +410,22 @@ func postComment(w http.ResponseWriter, r *http.Request) {
 			customer_id,
 			film_id)
 		VALUES($1,$2,$3) RETURNING comment_id`, comment, customer_id, film_id).Scan(&comment_id)
+
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("CID ", comment_id)
 
 	//marshall format to json
-	res, _ := json.Marshal(WelcomeResponse{Message: "OK"})
+	res, _ := json.Marshal(WelcomeResponse{Message: "Your Comment has been posted!"})
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(res)
 }
 
 func getComment(w http.ResponseWriter, r *http.Request) {
+
 	//connect to postgres db. look for 'Successfully Connected' output
 	db := connect()
-
-	//db.Exec(commentQuery1)
-
-	//db.Exec(commentQuery3)
 
 	//get each route variable
 	vars := mux.Vars(r)
@@ -503,6 +438,7 @@ func getComment(w http.ResponseWriter, r *http.Request) {
 	rows, err := db.Query(
 		`SELECT DISTINCT ON (c.comment_id)
 			f.film_id,
+			f.title,
 			c.comment,
 			cu.customer_id,
 			c.comment_id
@@ -511,18 +447,23 @@ func getComment(w http.ResponseWriter, r *http.Request) {
 		AND c.film_id=$1 AND c.customer_id=$2`, film_id, customer_id)
 
 	if err != nil {
-		fmt.Println("YEPPP")
 		log.Fatal(err)
 	}
 
+	//create array of pointers of type Film
 	var comment []*Film
 	for rows.Next() {
+
+		//allocate memory for db read
 		cmt := new(Film)
 
-		rows.Scan(&cmt.ID, &cmt.Comment, &cmt.CustomerId, &cmt.CommentId)
+		//convert data read from DB to proper Go types
+		rows.Scan(&cmt.FilmID, &cmt.Title, &cmt.Comment, &cmt.CustomerId, &cmt.CommentId)
 
+		//add comment to array
 		comment = append(comment, cmt)
 	}
+
 	//marshall format to json
 	res, _ := json.MarshalIndent(comment, "", "		")
 	w.Header().Set("Content-Type", "application/json")
@@ -531,7 +472,18 @@ func getComment(w http.ResponseWriter, r *http.Request) {
 }
 
 func WelcomeHandler(w http.ResponseWriter, r *http.Request) {
-	res, _ := json.Marshal(WelcomeResponse{Message: "Welcome to Mockbuster!Usage:\nView all films and key information: curl http://localhost:8080/films                           View all films and key information by category: curl http://localhost:8080/films/categories/[desired category]                             View all films and key information by rating: curl http://localhost:8080/films/ratings/[desired rating]                               View all information for a desired film name: curl http://localhost:8080/films/titles/[desired title[title name should deliminate words via underscores]]"})
+	res, _ := json.MarshalIndent(WelcomeResponse{Message: "Welcome to Mockbuster! See Console for usage information."}, "\n", "	")
+
+	fmt.Println("")
+	fmt.Println("Usage:")
+	fmt.Println("View all films and key information: curl http://localhost:8080/films")
+	fmt.Println("View all films and key information by category: curl http://localhost:8080/films/categories/[desired category]")
+	fmt.Println("View all films and key information by rating: curl http://localhost:8080/films/ratings/[desired rating]")
+	fmt.Println("View all information for a desired film name: curl http://localhost:8080/films/titles/[desired title[title name should deliminate words via underscores]]")
+	fmt.Println("Post a comment to a fil using its Film ID and your customer ID: curl -X POST -d '{\"comment\":\"[desired comment]]\", \"ID\":[desired film id], \"CustomerId\":[your customer id]}' http://localhost:8080/films/postcomment")
+	fmt.Println("Fetch all of your comments for a film using its Film ID and your Customer ID: curl http://localhost:8080/films/[desired film id]/comment/[your customer id]")
+	fmt.Println("")
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(res)
